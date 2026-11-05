@@ -2205,6 +2205,7 @@ body.has-legacy-dialog{overflow:hidden}
   </div>
 </section>
 
+    <p id="buildVersion" style="text-align:center;font-size:12px;color:#7a8fa0;margin:24px 0 32px">Phiên bản trang: v5 · 05/11/2026</p>
     </main>
 
     <button id="legacyDialogBackdrop" class="legacy-dialog-backdrop" aria-label="Đóng cửa sổ" tabindex="-1" hidden></button>
@@ -2532,13 +2533,13 @@ body.has-legacy-dialog{overflow:hidden}
         if (!url) {
           return `<span class="pdf-button disabled" aria-disabled="true" title="Mục mô phỏng chưa có tài liệu nguồn">${icon("file", 14)} Chưa có tài liệu</span>`;
         }
-        return `<a class="${cls} external" href="${escapeHtml(safeUrl(doc.pdfUrl))}" data-view-pdf="${escapeHtml(safeUrl(doc.pdfUrl))}" data-view-title="${escapeHtml(doc.title)}" target="_self" rel="noopener noreferrer" aria-label="${escapeHtml("Đọc tài liệu trong trang: " + doc.title)}">${icon("book", 14)} Đọc tài liệu</a>`;
+        return `<a class="${cls} external" href="${escapeHtml(driveFileId(doc.pdfUrl) ? readerUrl(doc) : safeUrl(doc.pdfUrl))}" data-view-pdf="${escapeHtml(safeUrl(doc.pdfUrl))}" data-view-title="${escapeHtml(doc.title)}" target="_self" rel="noopener" aria-label="${escapeHtml("Đọc tài liệu trong trang: " + doc.title)}">${icon("book", 14)} Đọc tài liệu</a>`;
       }
       function supplementaryLinks(doc) {
         const linkItem = (item) => {
           const url = readerUrl(item);
           if (!url) return "";
-          return `<div class="note" style="margin:10px 0"><a class="source-link" href="${escapeHtml(safeUrl(item.pdfUrl))}" data-view-pdf="${escapeHtml(safeUrl(item.pdfUrl))}" data-view-title="${escapeHtml(item.title)}" target="_self" rel="noopener noreferrer">${escapeHtml(item.title)} · Đọc tài liệu</a>${item.authority ? `<p style="font-size:11px;margin-top:5px">${escapeHtml(item.authority)} · ${escapeHtml(item.year)}</p>` : ""}<p style="font-size:11px;margin-top:5px">${escapeHtml(item.note || "")}</p>${item.host ? `<p style="font-size:10px">Nơi lưu: ${escapeHtml(item.host)}</p>` : ""}</div>`;
+          return `<div class="note" style="margin:10px 0"><a class="source-link" href="${escapeHtml(driveFileId(item.pdfUrl) ? readerUrl(item) : safeUrl(item.pdfUrl))}" data-view-pdf="${escapeHtml(safeUrl(item.pdfUrl))}" data-view-title="${escapeHtml(item.title)}" target="_self" rel="noopener">${escapeHtml(item.title)} · Đọc tài liệu</a>${item.authority ? `<p style="font-size:11px;margin-top:5px">${escapeHtml(item.authority)} · ${escapeHtml(item.year)}</p>` : ""}<p style="font-size:11px;margin-top:5px">${escapeHtml(item.note || "")}</p>${item.host ? `<p style="font-size:10px">Nơi lưu: ${escapeHtml(item.host)}</p>` : ""}</div>`;
         };
         const backup = (doc.backupPdfs || [])
           .map((item) => linkItem(item))
@@ -2915,15 +2916,26 @@ body.has-legacy-dialog{overflow:hidden}
       document.addEventListener("click", (event) => {
         const link = event.target.closest("a[href]");
         if (link && link.dataset.native) return;
+        // Trang đang chạy trong khung nhúng/xem trước (iframe sandbox): trình duyệt chặn điều hướng ra ngoài.
+        let framed = false; try { framed = window.self !== window.top; } catch (e) { framed = true; }
+        if (link && framed && /^https?:/i.test(link.href) && !link.closest("#documentViewer") && !link.getAttribute("href").startsWith("#")) {
+          const ext = driveFileId(link.dataset.viewPdf || link.href) ? readerUrl({pdfUrl: link.dataset.viewPdf || link.href}) : (link.dataset.viewPdf || link.href);
+          event.preventDefault();
+          let w = null; try { w = window.open(ext, "_blank"); } catch (e) {}
+          if (!w) {
+            const done = () => toast("Khung xem trước chặn mở link. Đã sao chép liên kết — dán vào Safari/Chrome để mở.");
+            try { navigator.clipboard.writeText(ext).then(done, () => toast("Khung xem trước chặn mở link: " + ext)); }
+            catch (e) { toast("Khung xem trước chặn mở link: " + ext); }
+          }
+          return;
+        }
         if (link && window.matchMedia("(max-width:820px), (pointer:coarse)").matches && !link.closest("#documentViewer")) {
           // Điện thoại: không dùng trình xem nội bộ (hay lỗi) — mở thẳng ở tab mới.
           const raw = link.dataset.viewPdf || link.href;
           const u = safeUrl(raw);
           const isDocLink = u && (link.dataset.viewPdf || /\.pdf(?:$|[?#])/i.test(u) || driveFileId(u));
-          if (isDocLink && event.button === 0) {
-            // Để trình duyệt tự điều hướng (an toàn với Safari iOS): chỉ đổi đích của thẻ <a>.
-            link.href = driveFileId(u) ? readerUrl({pdfUrl:u}) : u;
-            link.target = "_blank"; link.rel = "noopener noreferrer";
+          if (isDocLink) { // thẻ <a> đã có href đúng và target="_self": trình duyệt tự mở, không can thiệp
+            toast("Đang mở tài liệu… tệp lớn có thể mất vài giây.");
             return;
           }
           if (link.target === "_blank") return; // link ngoài: để trình duyệt xử lý
