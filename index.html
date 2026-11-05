@@ -11,7 +11,8 @@
     />
     <title>Thư Viện Y Hạt Nhân | Nucleo</title>
     <!-- Giao diện dùng CSS nội tuyến, không phụ thuộc CDN: tải nhanh và chạy được khi offline. -->
-    <style>
+    <script>(function(){["replaceState","pushState"].forEach(function(k){var o=history[k];history[k]=function(){try{return o.apply(history,arguments)}catch(e){}}})})();</script>
+<style>
       :root {
         --navy: #102c4a;
         --ink: #19344f;
@@ -1808,6 +1809,25 @@ body.has-legacy-dialog{overflow:hidden}
   .category,.tab,.detail-button,.pdf-button{font-size:14px!important}
 }
 </style>
+<style id="mobile-table-cards">
+/* Bảng trên điện thoại: chuyển thành thẻ, không bóp cột, không bẻ chữ giữa từ */
+.handbook-article table,.handbook-article th,.handbook-article td{overflow-wrap:normal;word-break:normal;hyphens:none}
+@media (max-width:700px){
+  .handbook-article .table-scroll{overflow:visible;border:0;border-radius:0}
+  .handbook-article .table-scroll>table.has-labels,.handbook-article table.has-labels{display:block;min-width:0!important;width:100%;border:0}
+  table.has-labels thead{display:none}
+  table.has-labels tbody,table.has-labels tr,table.has-labels td{display:block;width:100%}
+  table.has-labels tr{border:1px solid #dbe5ec;border-radius:10px;background:#fff;margin:0 0 12px;padding:4px 14px;box-shadow:0 1px 2px #102c4a10}
+  table.has-labels td{border:0!important;border-bottom:1px solid #edf2f5!important;padding:10px 0!important;font-size:15px!important;line-height:1.7;overflow-wrap:break-word}
+  table.has-labels td:last-child{border-bottom:0!important}
+  table.has-labels td::before{content:attr(data-label);display:block;font-size:12px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:#4f7a8c;margin-bottom:3px}
+  table.has-labels td:first-child{font-weight:700;color:#173b56;font-size:16px!important}
+  table.has-labels td:first-child::before{color:#7a8fa0}
+  /* bảng không có tiêu đề cột: vẫn cuộn ngang, giữ độ rộng tối thiểu */
+  .handbook-article .table-scroll>table:not(.has-labels){min-width:640px}
+  .handbook-article .table-scroll:has(>table:not(.has-labels)){overflow-x:auto;border:1px solid #dfe7ed}
+}
+</style>
 </head>
   <body>
     <a class="skip" href="#catalog">Đến danh mục tài liệu</a>
@@ -2901,11 +2921,9 @@ body.has-legacy-dialog{overflow:hidden}
           const u = safeUrl(raw);
           const isDocLink = u && (link.dataset.viewPdf || /\.pdf(?:$|[?#])/i.test(u) || driveFileId(u));
           if (isDocLink && event.button === 0) {
-            event.preventDefault();
-            const target = driveFileId(u) ? readerUrl({pdfUrl:u}) : u;
-            const a = document.createElement("a");
-            a.dataset.native = "1"; a.href = target; a.target = "_blank"; a.rel = "noopener noreferrer";
-            document.body.appendChild(a); a.click(); a.remove();
+            // Để trình duyệt tự điều hướng (an toàn với Safari iOS): chỉ đổi đích của thẻ <a>.
+            link.href = driveFileId(u) ? readerUrl({pdfUrl:u}) : u;
+            link.target = "_blank"; link.rel = "noopener noreferrer";
             return;
           }
           if (link.target === "_blank") return; // link ngoài: để trình duyệt xử lý
@@ -3033,6 +3051,9 @@ function renderArticles(query="") {
     wrapper.setAttribute("role", "region"); wrapper.setAttribute("tabindex", "0");
     wrapper.setAttribute("aria-label", "Bảng nội dung chuyên môn; cuộn ngang để xem đủ các cột");
     table.querySelectorAll("th").forEach(th => { if (!th.hasAttribute("scope")) th.setAttribute("scope", "col"); });
+    const heads = [...table.querySelectorAll("tr:first-child > th")].map(th => th.textContent.trim());
+    table.querySelectorAll("tr").forEach(tr => [...tr.children].forEach((c, i) => { if (c.tagName === "TD" && heads[i]) c.setAttribute("data-label", heads[i]); }));
+    if (heads.length) table.classList.add("has-labels");
   });
   nav.forEach(b=>{
     b.classList.toggle("active",b.dataset.hb===active);
